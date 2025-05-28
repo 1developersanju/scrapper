@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
 
                 // Define and add headers to the table
-                const headers = ['Title', 'Rating', 'Reviews', 'Phone', 'Industry', 'City/Country', 'Website', 'Google Maps Link'];
+                const headers = ['Title', 'Phone', 'Industry', 'City/Country', 'Website', 'Google Maps Link'];
                 const headerRow = document.createElement('tr');
                 headers.forEach(headerText => {
                     const header = document.createElement('th');
@@ -66,14 +66,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Add new results to the table
                 allScrapedData.forEach(function(item) {
                     var row = document.createElement('tr');
-                    ['title', 'rating', 'reviewCount', 'phone', 'industry', 'cityCountry', 'companyUrl', 'href'].forEach(function(key) {
+                    ['title', 'phone', 'industry', 'cityCountry', 'companyUrl', 'href'].forEach(function(key) {
                         var cell = document.createElement('td');
-                        
-                        if (key === 'reviewCount' && item[key]) {
-                            // Ensure reviewCount is just the number if it has parentheses
-                            item[key] = String(item[key]).replace(/\(|\)/g, ''); 
-                        }
-                        
                         cell.textContent = item[key] || ''; 
                         row.appendChild(cell);
                     });
@@ -126,25 +120,46 @@ async function scrollAndScrapeRepeatedly() {
             placeLink.click();
             
             // Wait for the details panel to load
-            await wait(2000);
+            await wait(3000); // Increased wait time for better loading
             
             // Look for the website element in the side panel
             // The website link appears with class CsEnBe and aria-label containing "Website:"
             const websiteElement = document.querySelector('a.CsEnBe[aria-label*="Website:"]');
             
             if (websiteElement && websiteElement.href) {
-                // Make sure it's not a Google link
-                if (!websiteElement.href.includes('google.com') && websiteElement.href.startsWith('http')) {
-                    return websiteElement.href;
+                // Make sure it's not a Google link or other irrelevant domains
+                const url = websiteElement.href;
+                if (!url.includes('google.com') && 
+                    !url.includes('facebook.com') && 
+                    !url.includes('instagram.com') && 
+                    !url.includes('twitter.com') && 
+                    !url.includes('linkedin.com') && 
+                    !url.includes('youtube.com') && 
+                    !url.includes('maps.google') && 
+                    url.startsWith('http')) {
+                    
+                    // Additional check: make sure the aria-label specifically mentions "Website"
+                    const ariaLabel = websiteElement.getAttribute('aria-label') || '';
+                    if (ariaLabel.toLowerCase().includes('website')) {
+                        return url;
+                    }
                 }
             }
             
-            // Alternative selector - look for any external link in the place details
-            const allLinks = Array.from(document.querySelectorAll('a[href^="http"]:not([href*="google.com"])'));
-            for (let link of allLinks) {
-                const ariaLabel = link.getAttribute('aria-label') || '';
-                if (ariaLabel.toLowerCase().includes('website')) {
-                    return link.href;
+            // More specific alternative selector - only look for elements specifically marked as website
+            const websiteLinks = Array.from(document.querySelectorAll('a[aria-label*="Website"]'));
+            for (let link of websiteLinks) {
+                const url = link.href;
+                if (url && 
+                    !url.includes('google.com') && 
+                    !url.includes('facebook.com') && 
+                    !url.includes('instagram.com') && 
+                    !url.includes('twitter.com') && 
+                    !url.includes('linkedin.com') && 
+                    !url.includes('youtube.com') && 
+                    !url.includes('maps.google') && 
+                    url.startsWith('http')) {
+                    return url;
                 }
             }
             
@@ -168,8 +183,6 @@ async function scrollAndScrapeRepeatedly() {
             if (!mainLink || !mainLink.href.includes('google.com/maps/place')) return null;
 
             var titleText = '';
-            var rating = '';
-            var reviewCount = '';
             var phone = '';
             var industry = '';
             var cityCountry = '';
@@ -178,17 +191,6 @@ async function scrollAndScrapeRepeatedly() {
             var titleElement = container.querySelector('.qBF1Pd.fontHeadlineSmall');
             if (titleElement) {
                 titleText = titleElement.textContent.trim();
-            }
-
-            // Extract rating and review count from the rating section
-            var ratingContainer = container.querySelector('.ZkP5Je');
-            if (ratingContainer) {
-                var ratingText = ratingContainer.getAttribute('aria-label') || '';
-                var ratingMatch = ratingText.match(/(\d+\.?\d*)\s+stars?\s+(\d+(?:,\d+)*)\s+Reviews?/i);
-                if (ratingMatch) {
-                    rating = ratingMatch[1];
-                    reviewCount = ratingMatch[2];
-                }
             }
 
             // Extract phone number from the specific phone span
@@ -271,8 +273,6 @@ async function scrollAndScrapeRepeatedly() {
             return {
                 identifier: itemIdentifier,
                 title: titleText,
-                rating: rating,
-                reviewCount: reviewCount,
                 phone: phone,
                 industry: industry,
                 cityCountry: cityCountry,
@@ -387,6 +387,8 @@ async function scrollAndScrapeRepeatedly() {
     
     // Now extract website URLs by visiting individual pages
     console.log('Starting website extraction...');
+    const itemsWithWebsites = [];
+    
     for (let i = 0; i < allItems.length; i++) {
         console.log(`Extracting website for ${i + 1}/${allItems.length}: ${allItems[i].title}`);
         
@@ -399,15 +401,23 @@ async function scrollAndScrapeRepeatedly() {
         
         if (container) {
             const websiteUrl = await extractWebsiteFromPlace(container);
-            allItems[i].companyUrl = websiteUrl;
+            if (websiteUrl) {
+                allItems[i].companyUrl = websiteUrl;
+                itemsWithWebsites.push(allItems[i]);
+                console.log(`Found website for ${allItems[i].title}: ${websiteUrl}`);
+            } else {
+                console.log(`Skipping ${allItems[i].title} - no website found`);
+            }
+        } else {
+            console.log(`Skipping ${allItems[i].title} - container not found`);
         }
         
         // Add a small delay between requests to be respectful
         await wait(1000);
     }
     
-    console.log('Website extraction completed');
-    return allItems;
+    console.log(`Website extraction completed. ${itemsWithWebsites.length} items with websites out of ${allItems.length} total items`);
+    return itemsWithWebsites;
 }
 
 // Convert the table to a CSV string

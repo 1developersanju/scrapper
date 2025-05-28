@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Google Maps Scraper",
-    "version": "8.2",
+    "version": "8.5",
     "description": "Google Maps Scraper by Bluvern",
     "permissions": ["activeTab", "scripting", "windows"],
     "action": {

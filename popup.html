@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Google Maps Scraper</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body { 
+      min-width: 570px; 
+      padding: 20px; 
+      font-family: 'Poppins', sans-serif; 
+    }
+    #message {
+      font-size: 16px;
+      padding-top: 20px;
+      padding-bottom: 20px;
+      text-decoration: none;
+    }
+    #progressContainer {
+      margin: 10px 0;
+      padding: 10px;
+      background-color: #f8f9fa;
+      border-radius: 8px;
+      border: 1px solid #e9ecef;
+      display: none;
+    }
+    #progressBar {
+      width: 100%;
+      height: 8px;
+      background-color: #e9ecef;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 5px 0;
+    }
+    #progressFill {
+      height: 100%;
+      background-color: #007BFF;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    #statusText {
+      font-size: 14px;
+      color: #6c757d;
+      margin: 5px 0;
+    }
+    .button {
+      padding: 10px 20px; 
+      border: none;
+      color: white;
+      background-color: #007BFF;
+      cursor: pointer; 
+      transition: background-color 0.3s ease; 
+      border-radius: 20px;
+      font-family: 'Poppins', sans-serif;
+    }
+    .button:hover {
+      background-color: #0056b3; 
+    }
+    .button:disabled {
+      background-color: #6c757d;
+      cursor: not-allowed;
+    }
+    .input {
+      padding: 8px 15px;
+      margin-right: 10px; 
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      font-family: 'Poppins', sans-serif;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      font-size: 12px;
+    }
+    th {
+      padding-top: 12px;
+      padding-bottom: 12px;
+      text-align: left;
+      background-color: #dddddd;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    td.website-cell {
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    td.loading-website {
+      background-color: #fff3cd;
+      color: #856404;
+      font-style: italic;
+    }
+    td.website-found {
+      background-color: #d4edda;
+    }
+    h1 {
+      font-weight: 600;
+      font-size: 24px;
+      margin: 0;
+    }
+    h4 {
+      margin: 0;
+      padding-top: 10px;
+    }
+    h4 a {
+      color: #676767;
+      text-decoration: none;
+    }
+    h4 a:hover {
+      color: #007BFF;
+      text-decoration: none;
+    }
+    .stats-container {
+      display: flex;
+      gap: 20px;
+      margin: 10px 0;
+      font-size: 14px;
+    }
+    .stat-item {
+      background: #f8f9fa;
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #e9ecef;
+    }
+    .stat-number {
+      font-weight: bold;
+      color: #007BFF;
+    }
+  </style>  
+</head>
+<body>
+  <h1> Google Maps Scraper</h1>
+  <h4>
+  </h4>
+  <div id="message">Checking URL...</div>
+  
+  <div id="progressContainer">
+    <div id="statusText">Initializing...</div>
+    <div id="progressBar">
+      <div id="progressFill"></div>
+    </div>
+    <div class="stats-container">
+      <div class="stat-item">
+        <span>Scraped: </span><span id="scrapedCount" class="stat-number">0</span>
+      </div>
+      <div class="stat-item">
+        <span>Websites Found: </span><span id="websitesFound" class="stat-number">0</span>
+      </div>
+      <div class="stat-item">
+        <span>Processing: </span><span id="processingCount" class="stat-number">0</span>
+      </div>
+    </div>
+  </div>
+  
+  <button id="actionButton" class="button" disabled>Scrape Google Maps</button>
+  <button id="downloadCsvButton" class="button" style="margin-left: 10px;" disabled>Download as CSV</button>
+  <input type="text" id="filenameInput" class="input" placeholder="Enter file name" style="margin-left: 10px;" />
+  
+  <table id="resultsTable">
+    <thead>
+      <tr>
+      </tr>
+    </thead>
+    <tbody>
+    </tbody>
+  </table>
+  <script src="popup.js"></script>
+</body>
+</html>

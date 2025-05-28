@@ -1,0 +1,19 @@
+{
+    "manifest_version": 3,
+    "name": "Google Maps Scraper",
+    "version": "8.2",
+    "description": "Google Maps Scraper by Bluvern",
+    "permissions": ["activeTab", "scripting", "windows"],
+    "action": {
+      
+    },
+    "background": {
+      "service_worker": "background.js"
+    },
+    "icons": {
+      "16": "map.png",
+      "48": "map.png",
+      "128": "map.png"
+    }
+  }
+  

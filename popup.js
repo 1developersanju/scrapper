@@ -68,7 +68,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     var row = document.createElement('tr');
                     ['title', 'phone', 'industry', 'cityCountry', 'companyUrl', 'href'].forEach(function(key) {
                         var cell = document.createElement('td');
-                        cell.textContent = item[key] || ''; 
+                        var cellValue = item[key] || '';
+                        // Remove "+" prefix if it exists
+                        if (cellValue.startsWith('+')) {
+                            cellValue = cellValue.substring('');
+                        }
+                        cell.textContent = cellValue; 
                         row.appendChild(cell);
                     });
                     resultsTable.appendChild(row);

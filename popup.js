@@ -53,6 +53,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     return;
                 }
 
+                // Filter out records without websites
+                const filteredData = allScrapedData.filter(item => item.companyUrl);
+
+                if (filteredData.length === 0) {
+                    document.getElementById('message').textContent = "No businesses with websites found. Try a different search.";
+                    return;
+                }
+
                 // Define and add headers to the table
                 const headers = ['Title', 'Phone', 'Industry', 'City/Country', 'Website', 'Google Maps Link'];
                 const headerRow = document.createElement('tr');
@@ -64,7 +72,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 resultsTable.appendChild(headerRow);
 
                 // Add new results to the table
-                allScrapedData.forEach(function(item) {
+                filteredData.forEach(function(item) {
                     var row = document.createElement('tr');
                     ['title', 'phone', 'industry', 'cityCountry', 'companyUrl', 'href'].forEach(function(key) {
                         var cell = document.createElement('td');
@@ -74,11 +82,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     resultsTable.appendChild(row);
                 });
 
-                if (allScrapedData.length > 0) {
+                if (filteredData.length > 0) {
                     downloadCsvButton.disabled = false;
-                    document.getElementById('message').textContent = `Scraped ${allScrapedData.length} items.`;
+                    document.getElementById('message').textContent = `Scraped ${filteredData.length} items with websites (filtered from ${allScrapedData.length} total items).`;
                 } else {
-                     document.getElementById('message').textContent = "No items found or page structure changed.";
+                    document.getElementById('message').textContent = "No items found or page structure changed.";
                 }
             });
         });
@@ -99,10 +107,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // This function will be injected into the target page
 async function scrollAndScrapeRepeatedly() {
-    const MAX_SCROLLS = 10; // Max number of scroll attempts
-    const SCROLL_DELAY = 2000; // ms to wait after a scroll for content to load
-    const NO_NEW_CONTENT_LIMIT = 2; // Stop after this many scrolls with no new unique items
-    const MAX_ITEMS_LIMIT = 100; // Maximum number of items to scrape (limit pool)
+    const MAX_SCROLLS = 8; // Reduced for faster completion
+    const SCROLL_DELAY = 1500; // Reduced delay for faster scrolling
+    const NO_NEW_CONTENT_LIMIT = 2; // Keep efficient
+    const MAX_ITEMS_LIMIT = 50; // Optimized limit for speed
 
     let allItems = [];
     let noNewContentCount = 0;
@@ -112,75 +120,113 @@ async function scrollAndScrapeRepeatedly() {
     // Function to extract website URL by clicking on place and reading side panel
     async function extractWebsiteFromPlace(container) {
         try {
+            // Get the business title for validation
+            const titleElement = container.querySelector('.qBF1Pd.fontHeadlineSmall');
+            const businessTitle = titleElement ? titleElement.textContent.trim() : '';
+            
             // Find the clickable link for this place
             const placeLink = container.querySelector('a.hfpxzc');
             if (!placeLink) return '';
 
-            // Click on the place to load its details
+            // Click on the place to load its details - no initial clearing needed
             placeLink.click();
             
-            // Wait for the details panel to load
-            await wait(3000); // Increased wait time for better loading
+            // Shorter initial wait for faster processing
+            await wait(1500);
             
-            // Look for the website element in the side panel
-            // The website link appears with class CsEnBe and aria-label containing "Website:"
-            const websiteElement = document.querySelector('a.CsEnBe[aria-label*="Website:"]');
+            // Quick validation and extraction approach
+            let websiteUrl = '';
+            let attempts = 0;
+            const maxAttempts = 2; // Reduced from 3 to 2 for speed
             
-            if (websiteElement && websiteElement.href) {
-                // Make sure it's not a Google link or other irrelevant domains
-                const url = websiteElement.href;
-                if (!url.includes('google.com') && 
-                    !url.includes('facebook.com') && 
-                    !url.includes('instagram.com') && 
-                    !url.includes('twitter.com') && 
-                    !url.includes('linkedin.com') && 
-                    !url.includes('youtube.com') && 
-                    !url.includes('maps.google') && 
-                    url.startsWith('http')) {
-                    
-                    // Additional check: make sure the aria-label specifically mentions "Website"
-                    const ariaLabel = websiteElement.getAttribute('aria-label') || '';
-                    if (ariaLabel.toLowerCase().includes('website')) {
-                        return url;
+            // Fast website extraction with multiple selectors in priority order
+            const websiteSelectors = [
+                'a.CsEnBe[aria-label*="Website"]',
+                'a[aria-label*="Website:"]'
+            ];
+            
+            for (let selector of websiteSelectors) {
+                const elements = document.querySelectorAll(selector);
+                
+                for (let element of elements) {
+                    const url = element.href || element.getAttribute('data-value');
+                    if (url && isValidWebsiteUrl(url)) {
+                        // Quick context validation - check if the element is in an active side panel
+                        const container = element.closest('[role="main"]') || 
+                                        element.closest('.m6QErb');
+                        
+                        if (container) {
+                            // Quick title match - just check if the business name appears anywhere in the container
+                            const containerText = container.textContent || '';
+                            const titleWords = businessTitle.toLowerCase().split(' ').filter(word => word.length > 2);
+                            
+                            if (titleWords.length === 0 || titleWords.some(word => containerText.toLowerCase().includes(word))) {
+                                websiteUrl = url;
+                                console.log(`⚡ Found official website for ${businessTitle}: ${url}`);
+                                return websiteUrl;
+                            }
+                        }
                     }
                 }
             }
             
-            // More specific alternative selector - only look for elements specifically marked as website
-            const websiteLinks = Array.from(document.querySelectorAll('a[aria-label*="Website"]'));
-            for (let link of websiteLinks) {
-                const url = link.href;
-                if (url && 
-                    !url.includes('google.com') && 
-                    !url.includes('facebook.com') && 
-                    !url.includes('instagram.com') && 
-                    !url.includes('twitter.com') && 
-                    !url.includes('linkedin.com') && 
-                    !url.includes('youtube.com') && 
-                    !url.includes('maps.google') && 
-                    url.startsWith('http')) {
-                    return url;
-                }
+            // If not found, quick retry
+            if (!websiteUrl && attempts < maxAttempts - 1) {
+                placeLink.click();
+                await wait(1000); // Shorter retry wait
+            }
+            attempts++;
+            
+            if (!websiteUrl) {
+                console.log(`❌ No official website found for ${businessTitle}`);
             }
             
-            return '';
+            return websiteUrl;
+            
         } catch (error) {
             console.log('Error extracting website:', error);
             return '';
         }
     }
+    
+    // Optimized helper function to validate URLs faster
+    function isValidWebsiteUrl(url) {
+        if (!url || !url.startsWith('http')) return false;
+        
+        // Comprehensive exclusion check for non-business websites
+        const excludedDomains = [
+            'google.com', 'facebook.com', 'instagram.com', 'twitter.com', 
+            'linkedin.com', 'youtube.com', 'maps.google', 'goo.gl',
+            'bit.ly', 't.co', 'tinyurl.com', 'whatsapp.com', 'telegram.org',
+            'maps.app.goo.gl', 'plus.google.com', 'yelp.com', 'tripadvisor.com',
+            'foursquare.com', 'waze.com', 'pinterest.com', 'snapchat.com',
+            'tiktok.com', 'trustpilot.com', 'booking.com', 'airbnb.com'
+        ];
+        
+        // Check if URL contains any excluded domain
+        return !excludedDomains.some(domain => url.toLowerCase().includes(domain));
+    }
 
-    // Helper function to extract data from the current view (previously scrapeData)
-    function extractDataFromPage() {
+    // Helper function to extract data from the current view and extract websites immediately
+    async function extractDataFromPageWithWebsites() {
         // Target the specific Google Maps search results structure
         var searchResults = Array.from(document.querySelectorAll('div[jsaction*="mouseover:pane.wfvdle"]'));
         
-        return searchResults.map(container => {
-            if (!container) return null;
+        const extractedItems = [];
+        
+        // Process items in smaller batches for better performance
+        for (let container of searchResults) {
+            if (!container) continue;
 
             // Extract the main link to get the Google Maps URL
             var mainLink = container.querySelector('a.hfpxzc');
-            if (!mainLink || !mainLink.href.includes('google.com/maps/place')) return null;
+            if (!mainLink || !mainLink.href.includes('google.com/maps/place')) continue;
+
+            // Use the main Google Maps link href as unique identifier
+            const itemIdentifier = mainLink.href;
+            
+            // Skip if we already have this item
+            if (scrapedItemIdentifiers.has(itemIdentifier)) continue;
 
             var titleText = '';
             var phone = '';
@@ -193,93 +239,94 @@ async function scrollAndScrapeRepeatedly() {
                 titleText = titleElement.textContent.trim();
             }
 
-            // Extract phone number from the specific phone span
+            // Quick pre-filter: Skip businesses that are unlikely to have websites
+            if (titleText.match(/^\d+\s/) || // Starts with address number
+                titleText.match(/apartment|flat|residence|villa|house|atm|parking/i) || // Residential/non-business
+                titleText.length < 3) { // Too short to be a real business
+                console.log(`⏭️ Skipping ${titleText} - not a business`);
+                continue;
+            }
+
+            // Fast extraction of basic info
             var phoneElement = container.querySelector('span.UsdlK');
             if (phoneElement) {
                 phone = phoneElement.textContent.trim();
             }
 
-            // Extract industry and city/country from the structured information    
+            // Quick industry and location extraction
             var infoElements = container.querySelectorAll('.W4Efsd .W4Efsd span');
             var infoTexts = Array.from(infoElements).map(el => el.textContent.trim()).filter(text => text && text !== '·');
             
-            // First non-empty text is usually the industry
             if (infoTexts.length > 0) {
                 industry = infoTexts[0];
             }
 
-            // Look for city/country in the info texts (usually contains city or country info)
+            // Fast location extraction
             for (let i = 1; i < infoTexts.length; i++) {
                 var text = infoTexts[i];
-                // Skip if it looks like hours, phone, or service info
                 if (text.match(/closed|open|am|pm|delivery|in-store|pickup/i)) continue;
                 if (text === phone) continue;
                 
-                // Look for location information - prioritize city/country over detailed addresses
-                // Skip detailed street addresses and focus on broader location info
-                if (text.match(/street|st\s|road|rd\s|avenue|ave\s|building|floor|ground|shop|unit|plot|showroom|suite|apt|apartment/i)) continue;
-                
-                // Look for text that seems like a city or broader location (not a detailed address)
-                // Generally, city/country info is shorter and doesn't contain numbers or detailed address components
-                if (text.length > 3 && text.length < 50 && !text.match(/^\d+/) && !text.match(/floor|level|unit|shop/i)) {
-                    // If it contains common location separators or seems like a place name
-                    if (text.match(/,|\s-\s/) || text.match(/^[A-Z][a-z]+(\s[A-Z][a-z]*)*$/)) {
-                        cityCountry = text;
-                        break;
-                    }
-                }
-            }
-            
-            // Fallback: try to extract location from the URL or page context
-            if (!cityCountry) {
-                // Try to get location from the current page URL or search context
-                var currentUrl = window.location.href;
-                var urlLocationMatch = currentUrl.match(/maps\/search\/[^\/]*\+in\+([^\/&?]+)/i);
-                if (urlLocationMatch) {
-                    cityCountry = decodeURIComponent(urlLocationMatch[1]).replace(/\+/g, ' ');
-                } else {
-                    // Try to find any location-like text in the container
-                    var allText = container.textContent || '';
-                    var lines = allText.split(/[\n\r]+/).map(line => line.trim()).filter(line => line.length > 0);
-                    
-                    // Look for a line that might contain city/country info
-                    for (let line of lines) {
-                        // Skip lines with detailed address components
-                        if (line.match(/street|st\s|road|rd\s|building|floor|shop|unit|suite|apt/i)) continue;
-                        if (line.match(/^\d+/) || line.match(/phone|call|delivery|pickup/i)) continue;
-                        
-                        // Look for lines that seem like location names (contain letters, possibly commas)
-                        if (line.length > 3 && line.length < 100 && line.match(/[a-zA-Z]/) && line.match(/^[^0-9]*$/)) {
-                            cityCountry = line;
+                if (!text.match(/street|st\s|road|rd\s|avenue|ave\s|building|floor|ground|shop|unit|plot|showroom|suite|apt|apartment/i)) {
+                    if (text.length > 3 && text.length < 50 && !text.match(/^\d+/) && !text.match(/floor|level|unit|shop/i)) {
+                        if (text.match(/,|\s-\s/) || text.match(/^[A-Z][a-z]+(\s[A-Z][a-z]*)*$/)) {
+                            cityCountry = text;
                             break;
                         }
                     }
                 }
             }
             
-            // Clean up the city/country text
+            // Quick fallback for location
+            if (!cityCountry) {
+                var currentUrl = window.location.href;
+                var urlLocationMatch = currentUrl.match(/maps\/search\/[^\/]*\+in\+([^\/&?]+)/i);
+                if (urlLocationMatch) {
+                    cityCountry = decodeURIComponent(urlLocationMatch[1]).replace(/\+/g, ' ');
+                }
+            }
+            
             if (cityCountry) {
-                // Remove common prefixes and clean up
                 cityCountry = cityCountry.replace(/^(in\s+|near\s+|at\s+)/i, '').trim();
-                // Limit length to avoid getting full addresses
                 if (cityCountry.length > 80) {
                     cityCountry = cityCountry.substring(0, 80) + '...';
                 }
             }
 
-            // Use the main Google Maps link href as unique identifier
-            const itemIdentifier = mainLink.href;
-
-            return {
+            // Fast website extraction
+            console.log(`🚀 Processing: ${titleText}`);
+            const websiteUrl = await extractWebsiteFromPlace(container);
+            
+            const item = {
                 identifier: itemIdentifier,
                 title: titleText,
                 phone: phone,
                 industry: industry,
                 cityCountry: cityCountry,
-                companyUrl: '', // Will be filled later by visiting individual pages
+                companyUrl: websiteUrl || '',
                 href: itemIdentifier,
             };
-        }).filter(item => item !== null);
+
+            extractedItems.push(item);
+            scrapedItemIdentifiers.add(itemIdentifier);
+            
+            if (websiteUrl) {
+                console.log(`✅ ${titleText} → ${websiteUrl}`);
+            } else {
+                console.log(`⚪ ${titleText} → No website`);
+            }
+
+            // Minimal delay for maximum speed
+            await wait(500);
+            
+            // Check limits
+            if (extractedItems.length >= MAX_ITEMS_LIMIT) {
+                console.log(`🎯 Reached limit: ${MAX_ITEMS_LIMIT} items`);
+                break;
+            }
+        }
+        
+        return extractedItems;
     }
 
     // Function to scroll the results panel
@@ -320,13 +367,8 @@ async function scrollAndScrapeRepeatedly() {
     if (!scrollableElement) {
         console.warn("Scrollable element not found. Scraping only visible items.");
         // If no scrollable element, just scrape what's visible and return
-        const initialItems = extractDataFromPage();
-        initialItems.forEach(item => {
-            if (item.identifier && !scrapedItemIdentifiers.has(item.identifier) && allItems.length < MAX_ITEMS_LIMIT) {
-                allItems.push(item);
-                scrapedItemIdentifiers.add(item.identifier);
-            }
-        });
+        const initialItems = await extractDataFromPageWithWebsites();
+        allItems.push(...initialItems);
         console.log(`Scraped ${allItems.length} items (no scrolling, limit: ${MAX_ITEMS_LIMIT})`);
         return allItems;
     }
@@ -338,20 +380,14 @@ async function scrollAndScrapeRepeatedly() {
     const MAX_CONSECUTIVE_NO_NEW_ITEMS = 3;
     
     while (scrollAttempts < MAX_SCROLLS && consecutiveNoNewItems < MAX_CONSECUTIVE_NO_NEW_ITEMS && allItems.length < MAX_ITEMS_LIMIT) {
-        const previousItemCount = scrapedItemIdentifiers.size;
-        const currentItemsOnPage = extractDataFromPage();
+        const previousItemCount = allItems.length;
+        const newItems = await extractDataFromPageWithWebsites();
 
-        // Add new unique items (but respect the limit)
-        let newItemsFound = 0;
-        currentItemsOnPage.forEach(item => {
-            if (item.identifier && !scrapedItemIdentifiers.has(item.identifier) && allItems.length < MAX_ITEMS_LIMIT) {
-                allItems.push(item);
-                scrapedItemIdentifiers.add(item.identifier);
-                newItemsFound++;
-            }
-        });
+        // Add new items to our collection
+        allItems.push(...newItems);
+        const newItemsFound = newItems.length;
 
-        console.log(`Scroll ${scrollAttempts + 1}: Found ${newItemsFound} new items. Total unique items: ${scrapedItemIdentifiers.size}/${MAX_ITEMS_LIMIT}`);
+        console.log(`Scroll ${scrollAttempts + 1}: Found ${newItemsFound} new items with websites. Total items: ${allItems.length}/${MAX_ITEMS_LIMIT}`);
 
         // Check if we've reached the limit
         if (allItems.length >= MAX_ITEMS_LIMIT) {
@@ -383,41 +419,8 @@ async function scrollAndScrapeRepeatedly() {
         }
     }
     
-    console.log(`Scrolling finished. Total scrolls: ${scrollAttempts}, Total unique items: ${allItems.length}/${MAX_ITEMS_LIMIT}`);
-    
-    // Now extract website URLs by visiting individual pages
-    console.log('Starting website extraction...');
-    const itemsWithWebsites = [];
-    
-    for (let i = 0; i < allItems.length; i++) {
-        console.log(`Extracting website for ${i + 1}/${allItems.length}: ${allItems[i].title}`);
-        
-        // Find the original container for this item by searching for its title
-        const searchResults = Array.from(document.querySelectorAll('div[jsaction*="mouseover:pane.wfvdle"]'));
-        const container = searchResults.find(container => {
-            const titleElement = container.querySelector('.qBF1Pd.fontHeadlineSmall');
-            return titleElement && titleElement.textContent.trim() === allItems[i].title;
-        });
-        
-        if (container) {
-            const websiteUrl = await extractWebsiteFromPlace(container);
-            if (websiteUrl) {
-                allItems[i].companyUrl = websiteUrl;
-                itemsWithWebsites.push(allItems[i]);
-                console.log(`Found website for ${allItems[i].title}: ${websiteUrl}`);
-            } else {
-                console.log(`Skipping ${allItems[i].title} - no website found`);
-            }
-        } else {
-            console.log(`Skipping ${allItems[i].title} - container not found`);
-        }
-        
-        // Add a small delay between requests to be respectful
-        await wait(1000);
-    }
-    
-    console.log(`Website extraction completed. ${itemsWithWebsites.length} items with websites out of ${allItems.length} total items`);
-    return itemsWithWebsites;
+    console.log(`Scraping completed. Total scrolls: ${scrollAttempts}, Total items with websites: ${allItems.length}/${MAX_ITEMS_LIMIT}`);
+    return allItems;
 }
 
 // Convert the table to a CSV string
